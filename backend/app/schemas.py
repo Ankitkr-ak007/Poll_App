@@ -62,7 +62,7 @@ class PollUpdate(PollBase):
 class PollResponse(PollBase):
     id: UUID
     session_id: Optional[UUID] = None
-    order_index: int = 0
+    order_index: Optional[int] = 0
     status: str
     created_at: datetime
     closed_at: Optional[datetime] = None
