@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: polling_user
+      POSTGRES_PASSWORD: polling_password
+      POSTGRES_DB: polling_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://polling_user:polling_password@db:5432/polling_db
+      - JWT_SECRET=supersecretjwtkey_change_in_prod
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=changeme
+      - ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:
