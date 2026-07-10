@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ExternalLink, Download } from 'lucide-react';
 
 type Poll = {
   id: string;
@@ -117,22 +118,41 @@ export default function AdminDashboard() {
     setBulkNames('');
     fetchResults(token!);
   };
+  
+  const handleExportCSV = async () => {
+    if (poll) {
+      // Need to attach auth header for export
+      const res = await fetch(`${API_URL}/api/admin/export/${poll.id}.csv`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `poll_results_${poll.id}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+    }
+  };
 
   if (!poll || !results) return (
-    <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+    <div className="min-h-screen bg-bg-dark text-white flex items-center justify-center font-inter">
       <div className="animate-pulse flex flex-col items-center">
-        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-zinc-400 font-medium tracking-wide">Loading dashboard...</p>
+        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-surface-highlight font-medium tracking-wide">Loading dashboard...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-4 md:p-8 selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-bg-dark text-white p-4 md:p-8 font-inter">
       <div className="max-w-6xl mx-auto space-y-8">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-zinc-900/80 backdrop-blur p-6 rounded-2xl border border-zinc-800/50 shadow-xl gap-4 md:gap-0">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-surface p-6 rounded-2xl border border-surface-highlight shadow-xl gap-4 md:gap-0">
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 tracking-tight">Poll Admin</h1>
+            <h1 className="text-3xl font-bold font-outfit tracking-tight">Poll Admin</h1>
             <div className="flex items-center gap-2 mt-2">
               <span className="text-zinc-400 text-sm font-medium">Status:</span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${
@@ -144,54 +164,67 @@ export default function AdminDashboard() {
               </span>
             </div>
           </div>
-          <div className="space-x-4">
+          <div className="space-x-4 flex items-center">
+            <button 
+              onClick={() => window.open('/present', '_blank')}
+              className="flex items-center gap-2 bg-surface-highlight hover:bg-zinc-600 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200"
+            >
+              <ExternalLink size={18} />
+              Present
+            </button>
             {poll.status === 'draft' && (
-              <button onClick={() => handleStatusChange('open')} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-[0_0_15px_rgba(5,150,105,0.2)] hover:shadow-[0_0_20px_rgba(5,150,105,0.4)] active:scale-95">Open Voting</button>
+              <button onClick={() => handleStatusChange('open')} className="bg-brand hover:bg-brand-dark px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 text-white">Open Voting</button>
             )}
             {poll.status === 'active' && (
-              <button onClick={() => handleStatusChange('close')} className="bg-amber-600 hover:bg-amber-500 px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-[0_0_15px_rgba(217,119,6,0.2)] hover:shadow-[0_0_20px_rgba(217,119,6,0.4)] active:scale-95">Close Round</button>
+              <button onClick={() => handleStatusChange('close')} className="bg-amber-600 hover:bg-amber-500 px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 text-white">Close Round</button>
             )}
             {poll.status === 'closed' && (
-              <button onClick={handleReset} className="bg-red-600/90 hover:bg-red-500 px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] active:scale-95">Reset Round</button>
+              <>
+                <button onClick={handleExportCSV} className="flex items-center gap-2 bg-zinc-700 hover:bg-zinc-600 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200">
+                  <Download size={18} />
+                  CSV
+                </button>
+                <button onClick={handleReset} className="bg-brand hover:bg-brand-dark px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 text-white">Reset Round</button>
+              </>
             )}
           </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Poll Configuration */}
-          <div className="bg-zinc-900/80 backdrop-blur p-6 rounded-2xl border border-zinc-800/50 shadow-xl flex flex-col">
-            <h2 className="text-xl font-bold mb-6 border-b border-zinc-800/80 pb-3 tracking-tight">Poll Settings</h2>
+          <div className="bg-surface p-6 rounded-2xl border border-surface-highlight shadow-xl flex flex-col">
+            <h2 className="text-xl font-bold mb-6 border-b border-surface-highlight pb-3 tracking-tight font-outfit">Poll Settings</h2>
             <div className="space-y-5 flex-grow">
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-1.5 ml-1">Question</label>
-                <input type="text" value={question} onChange={e => setQuestion(e.target.value)} disabled={poll.status !== 'draft'} className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all placeholder-zinc-600" />
+                <input type="text" value={question} onChange={e => setQuestion(e.target.value)} disabled={poll.status !== 'draft'} className="w-full px-4 py-3 bg-bg-dark border border-surface-highlight rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all placeholder-zinc-600" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1.5 ml-1">Option A</label>
-                  <input type="text" value={optA} onChange={e => setOptA(e.target.value)} disabled={poll.status !== 'draft'} className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all placeholder-zinc-600" />
+                  <input type="text" value={optA} onChange={e => setOptA(e.target.value)} disabled={poll.status !== 'draft'} className="w-full px-4 py-3 bg-bg-dark border border-surface-highlight rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all placeholder-zinc-600" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1.5 ml-1">Option B</label>
-                  <input type="text" value={optB} onChange={e => setOptB(e.target.value)} disabled={poll.status !== 'draft'} className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all placeholder-zinc-600" />
+                  <input type="text" value={optB} onChange={e => setOptB(e.target.value)} disabled={poll.status !== 'draft'} className="w-full px-4 py-3 bg-bg-dark border border-surface-highlight rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all placeholder-zinc-600" />
                 </div>
               </div>
             </div>
             {poll.status === 'draft' && (
-              <button onClick={handleUpdatePoll} className="w-full mt-6 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-xl font-semibold transition-all duration-200 border border-zinc-700/50 hover:border-zinc-600">Save Changes</button>
+              <button onClick={handleUpdatePoll} className="w-full mt-6 bg-surface-highlight hover:bg-zinc-600 py-3 rounded-xl font-semibold transition-all duration-200 border border-surface-highlight hover:border-zinc-500">Save Changes</button>
             )}
           </div>
 
           {/* Live Results */}
-          <div className="bg-zinc-900/80 backdrop-blur p-6 rounded-2xl border border-zinc-800/50 shadow-xl">
-            <h2 className="text-xl font-bold mb-6 border-b border-zinc-800/80 pb-3 tracking-tight flex items-center justify-between">
+          <div className="bg-surface p-6 rounded-2xl border border-surface-highlight shadow-xl">
+            <h2 className="text-xl font-bold mb-6 border-b border-surface-highlight pb-3 tracking-tight font-outfit flex items-center justify-between">
               Live Results
               {poll.status === 'active' && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span>}
             </h2>
             <div className="space-y-8">
-              <div className="flex justify-between items-end bg-zinc-800/30 p-4 rounded-xl border border-zinc-800/50">
+              <div className="flex justify-between items-end bg-bg-dark p-4 rounded-xl border border-surface-highlight">
                 <span className="text-zinc-400 font-medium">Total Votes Cast</span>
-                <span className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-400">{results.total}</span>
+                <span className="text-4xl font-black font-outfit">{results.total}</span>
               </div>
               
               <div className="space-y-6">
@@ -200,9 +233,8 @@ export default function AdminDashboard() {
                     <span className="font-semibold text-zinc-200">{results.option_a.text}</span>
                     <span className="font-bold">{results.option_a.count} <span className="text-zinc-500 text-sm font-medium ml-1">({results.total ? Math.round((results.option_a.count / results.total) * 100) : 0}%)</span></span>
                   </div>
-                  <div className="w-full bg-zinc-800/50 rounded-full h-4 overflow-hidden border border-zinc-700/30">
-                    <div className="bg-gradient-to-r from-indigo-600 to-indigo-400 h-full rounded-full transition-all duration-700 ease-out relative" style={{ width: `${results.total ? (results.option_a.count / results.total) * 100 : 0}%` }}>
-                      <div className="absolute top-0 left-0 w-full h-full bg-white/20 w-[200%] animate-[shimmer_2s_infinite]"></div>
+                  <div className="w-full bg-bg-dark rounded-full h-4 overflow-hidden border border-surface-highlight">
+                    <div className="bg-brand h-full rounded-full transition-all duration-700 ease-out relative" style={{ width: `${results.total ? (results.option_a.count / results.total) * 100 : 0}%` }}>
                     </div>
                   </div>
                 </div>
@@ -212,9 +244,8 @@ export default function AdminDashboard() {
                     <span className="font-semibold text-zinc-200">{results.option_b.text}</span>
                     <span className="font-bold">{results.option_b.count} <span className="text-zinc-500 text-sm font-medium ml-1">({results.total ? Math.round((results.option_b.count / results.total) * 100) : 0}%)</span></span>
                   </div>
-                  <div className="w-full bg-zinc-800/50 rounded-full h-4 overflow-hidden border border-zinc-700/30">
-                    <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-full rounded-full transition-all duration-700 ease-out relative" style={{ width: `${results.total ? (results.option_b.count / results.total) * 100 : 0}%` }}>
-                      <div className="absolute top-0 left-0 w-full h-full bg-white/20 w-[200%] animate-[shimmer_2s_infinite]"></div>
+                  <div className="w-full bg-bg-dark rounded-full h-4 overflow-hidden border border-surface-highlight">
+                    <div className="bg-surface-highlight h-full rounded-full transition-all duration-700 ease-out relative" style={{ width: `${results.total ? (results.option_b.count / results.total) * 100 : 0}%` }}>
                     </div>
                   </div>
                 </div>
@@ -223,32 +254,32 @@ export default function AdminDashboard() {
           </div>
 
           {/* Roster Management */}
-          <div className="bg-zinc-900/80 backdrop-blur p-6 rounded-2xl border border-zinc-800/50 shadow-xl md:col-span-2">
-            <h2 className="text-xl font-bold mb-6 border-b border-zinc-800/80 pb-3 tracking-tight">Roster Management <span className="text-sm font-normal text-zinc-500 ml-2">({results.participants.length} total)</span></h2>
+          <div className="bg-surface p-6 rounded-2xl border border-surface-highlight shadow-xl md:col-span-2">
+            <h2 className="text-xl font-bold mb-6 border-b border-surface-highlight pb-3 tracking-tight font-outfit">Roster Management <span className="text-sm font-normal text-zinc-500 ml-2">({results.participants.length} total)</span></h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-1 flex flex-col">
                 <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">Bulk Add (one per line)</label>
                 <textarea 
                   value={bulkNames} 
                   onChange={e => setBulkNames(e.target.value)}
-                  className="w-full flex-grow min-h-[160px] px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none resize-none transition-all placeholder-zinc-600 custom-scrollbar"
+                  className="w-full flex-grow min-h-[160px] px-4 py-3 bg-bg-dark border border-surface-highlight rounded-xl focus:ring-2 focus:ring-brand focus:border-brand outline-none resize-none transition-all placeholder-zinc-600 custom-scrollbar"
                   placeholder="John Doe&#10;Jane Smith"
                 />
-                <button onClick={handleAddParticipants} className="mt-4 w-full bg-zinc-800 hover:bg-zinc-700 py-3 rounded-xl font-semibold transition-all border border-zinc-700/50 hover:border-zinc-600 shadow-sm active:scale-[0.98]">Add Participants</button>
+                <button onClick={handleAddParticipants} className="mt-4 w-full bg-surface-highlight hover:bg-zinc-600 py-3 rounded-xl font-semibold transition-all border border-surface-highlight shadow-sm active:scale-[0.98]">Add Participants</button>
               </div>
               
-              <div className="md:col-span-2 bg-zinc-950/50 rounded-xl border border-zinc-800/50 overflow-hidden flex flex-col h-[280px]">
+              <div className="md:col-span-2 bg-bg-dark rounded-xl border border-surface-highlight overflow-hidden flex flex-col h-[280px]">
                 <div className="overflow-y-auto custom-scrollbar flex-grow p-1">
                   <table className="w-full text-left text-sm">
-                    <thead className="sticky top-0 bg-zinc-950/90 backdrop-blur text-zinc-400 z-10">
+                    <thead className="sticky top-0 bg-bg-dark text-zinc-400 z-10 border-b border-surface-highlight">
                       <tr>
                         <th className="px-4 py-3 font-semibold tracking-wide">Name</th>
                         <th className="px-4 py-3 font-semibold tracking-wide text-right">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-800/50">
+                    <tbody className="divide-y divide-surface-highlight">
                       {results.participants.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
+                        <tr key={idx} className="hover:bg-surface transition-colors">
                           <td className="px-4 py-3 font-medium text-zinc-300">{p.name}</td>
                           <td className="px-4 py-3 text-right">
                             {p.has_voted ? (

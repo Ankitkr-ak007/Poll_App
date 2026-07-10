@@ -38,6 +38,16 @@ class ParticipantPublic(BaseModel):
 class ParticipantBulkCreate(BaseModel):
     names: List[str]
 
+class SessionCreate(BaseModel):
+    name: str
+
+class SessionResponse(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 class PollBase(BaseModel):
     question: str
     option_a_text: str
@@ -51,6 +61,8 @@ class PollUpdate(PollBase):
 
 class PollResponse(PollBase):
     id: UUID
+    session_id: Optional[UUID] = None
+    order_index: int = 0
     status: str
     created_at: datetime
     closed_at: Optional[datetime] = None
@@ -77,3 +89,4 @@ class PollResults(BaseModel):
 
 class ResetConfirm(BaseModel):
     confirm: bool
+

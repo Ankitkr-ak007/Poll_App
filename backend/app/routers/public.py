@@ -10,19 +10,20 @@ IP_RATE_LIMIT = {}
 RATE_LIMIT_WINDOW = 5 # seconds
 
 from ..database import get_db
+from ..ws_manager import manager
 
 router = APIRouter(prefix="/api", tags=["public"])
 
 @router.get("/poll", response_model=schemas.PollResponse)
 def get_public_poll(db: Session = Depends(get_db)):
-    poll = db.query(models.Poll).first()
+    poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
     if not poll:
         raise HTTPException(status_code=404, detail="No poll found")
     return poll
 
 @router.get("/participants/search", response_model=List[schemas.ParticipantPublic])
 def search_participants(q: str = "", db: Session = Depends(get_db)):
-    poll = db.query(models.Poll).first()
+    poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
     if not poll:
         return []
     
@@ -34,7 +35,7 @@ def search_participants(q: str = "", db: Session = Depends(get_db)):
     return participants
 
 @router.post("/vote")
-def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = Depends(get_db)):
+async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
     current_time = time.time()
     
@@ -46,7 +47,7 @@ def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = Depends(
     
     IP_RATE_LIMIT[client_ip] = current_time
     
-    poll = db.query(models.Poll).first()
+    poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
     if not poll or poll.status != "active":
         raise HTTPException(status_code=403, detail="Poll is not active")
     
@@ -68,5 +69,21 @@ def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = Depends(
     participant.voted_option = vote.option
     participant.voted_at = models.func.now()
     
+    # Add vote event for analytics
+    db.add(models.VoteEvent(poll_id=poll.id, option=vote.option))
+    
     db.commit()
+    
+    # Broadcast to WebSockets
+    option_a_count = db.query(models.Participant).filter(models.Participant.poll_id == poll.id, models.Participant.voted_option == 'A').count()
+    option_b_count = db.query(models.Participant).filter(models.Participant.poll_id == poll.id, models.Participant.voted_option == 'B').count()
+    total = db.query(models.Participant).filter(models.Participant.poll_id == poll.id, models.Participant.has_voted == True).count()
+    
+    await manager.broadcast_poll_results(str(poll.id), {
+        "type": "vote",
+        "option_a_count": option_a_count,
+        "option_b_count": option_b_count,
+        "total": total
+    })
+    
     return {"status": "ok"}
