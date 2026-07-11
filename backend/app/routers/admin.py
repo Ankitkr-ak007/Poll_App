@@ -300,6 +300,7 @@ def add_roster(bulk_create: schemas.RosterBulkCreate, db: Session = Depends(get_
             models.Roster.session_id == poll.session_id,
             models.Roster.name == name
         ).first()
+        
         if not existing:
             new_roster = models.Roster(
                 session_id=poll.session_id, 
@@ -308,6 +309,11 @@ def add_roster(bulk_create: schemas.RosterBulkCreate, db: Session = Depends(get_
             )
             db.add(new_roster)
             created_rosters.append(new_roster)
+        else:
+            # If the user explicitly provided a passcode for an existing name, update it
+            if len(parts) > 1 and parts[1]:
+                existing.vote_code = vote_code
+                db.add(existing)
     
     db.commit()
     for r in created_rosters:
