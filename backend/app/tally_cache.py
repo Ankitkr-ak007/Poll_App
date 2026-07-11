@@ -9,17 +9,17 @@ live_tally: Dict[str, Dict[str, int]] = {}
 def get_tally(poll_id: str, db: Session) -> Dict[str, int]:
     if str(poll_id) not in live_tally:
         # Hydrate from DB
-        option_a = db.query(models.Participant).filter(
-            models.Participant.poll_id == poll_id, 
-            models.Participant.voted_option == 'A'
+        option_a = db.query(models.RoundVote).filter(
+            models.RoundVote.poll_id == poll_id, 
+            models.RoundVote.voted_option == 'A'
         ).count()
-        option_b = db.query(models.Participant).filter(
-            models.Participant.poll_id == poll_id, 
-            models.Participant.voted_option == 'B'
+        option_b = db.query(models.RoundVote).filter(
+            models.RoundVote.poll_id == poll_id, 
+            models.RoundVote.voted_option == 'B'
         ).count()
-        total = db.query(models.Participant).filter(
-            models.Participant.poll_id == poll_id, 
-            models.Participant.has_voted == True
+        total = db.query(models.RoundVote).filter(
+            models.RoundVote.poll_id == poll_id, 
+            models.RoundVote.has_voted == True
         ).count()
         live_tally[str(poll_id)] = {
             "A": option_a,
