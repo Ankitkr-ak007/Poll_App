@@ -26,12 +26,12 @@ def get_public_poll(db: Session = Depends(get_db)):
 @router.get("/participants/search", response_model=List[schemas.ParticipantPublic])
 def search_participants(q: str = "", db: Session = Depends(get_db)):
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
-    if not poll:
+    if not poll or not poll.session_id:
         return []
     
-    query = db.query(models.Participant).filter(models.Participant.poll_id == poll.id)
+    query = db.query(models.Roster).filter(models.Roster.session_id == poll.session_id)
     if q:
-        query = query.filter(models.Participant.name.ilike(f"%{q}%"))
+        query = query.filter(models.Roster.name.ilike(f"%{q}%"))
     
     participants = query.limit(10).all()
     return participants
@@ -44,14 +44,15 @@ def check_vote_status(poll_id: str, request: Request, response: Response, db: Se
         response.set_cookie(key="device_token", value=device_token, httponly=True, secure=True, samesite="none")
         return {"already_voted": False}
     
-    participant = db.query(models.Participant).filter(
-        models.Participant.poll_id == poll_id,
-        models.Participant.device_token == device_token,
-        models.Participant.has_voted == True
+    vote_record = db.query(models.RoundVote).filter(
+        models.RoundVote.poll_id == poll_id,
+        models.RoundVote.device_token == device_token,
+        models.RoundVote.has_voted == True
     ).first()
     
-    if participant:
-        return {"already_voted": True, "name": participant.name, "option": participant.voted_option}
+    if vote_record:
+        roster = db.query(models.Roster).filter(models.Roster.id == vote_record.roster_id).first()
+        return {"already_voted": True, "name": roster.name if roster else None, "option": vote_record.voted_option}
     
     return {"already_voted": False}
 
@@ -77,37 +78,53 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, response: Respon
     if not poll or poll.status != "active":
         raise HTTPException(status_code=403, detail="Poll is not active")
     
-    participant = db.query(models.Participant).filter(
-        models.Participant.id == vote.participant_id,
-        models.Participant.poll_id == poll.id
+    roster_entry = db.query(models.Roster).filter(
+        models.Roster.id == vote.participant_id,
+        models.Roster.session_id == poll.session_id,
+        models.Roster.vote_code == vote.vote_code
     ).first()
     
-    if not participant:
-        raise HTTPException(status_code=404, detail="Participant not found")
+    if not roster_entry:
+        raise HTTPException(status_code=403, detail="Invalid passcode for this participant.")
     
     # Check if this device already voted as someone else
-    existing_device_vote = db.query(models.Participant).filter(
-        models.Participant.poll_id == poll.id,
-        models.Participant.device_token == device_token,
-        models.Participant.has_voted == True
+    existing_device_vote = db.query(models.RoundVote).filter(
+        models.RoundVote.poll_id == poll.id,
+        models.RoundVote.device_token == device_token,
+        models.RoundVote.has_voted == True
     ).first()
 
-    if existing_device_vote and str(existing_device_vote.id) != str(participant.id):
-        raise HTTPException(status_code=409, detail=f"This device already voted as {existing_device_vote.name} in this round.")
+    if existing_device_vote and str(existing_device_vote.roster_id) != str(roster_entry.id):
+        existing_roster = db.query(models.Roster).filter(models.Roster.id == existing_device_vote.roster_id).first()
+        raise HTTPException(status_code=409, detail=f"This device already voted as {existing_roster.name if existing_roster else 'someone else'} in this round.")
     
-    if participant.has_voted:
-        if participant.last_vote_attempt_id == vote.vote_attempt_id:
+    round_vote = db.query(models.RoundVote).filter(
+        models.RoundVote.poll_id == poll.id,
+        models.RoundVote.roster_id == roster_entry.id
+    ).first()
+    
+    if round_vote and round_vote.has_voted:
+        if round_vote.last_vote_attempt_id == vote.vote_attempt_id:
             return {"status": "ok", "idempotent": True}
         raise HTTPException(status_code=409, detail="Already voted")
     
     if vote.option not in ['A', 'B']:
         raise HTTPException(status_code=400, detail="Invalid option")
+        
+    if not round_vote:
+        round_vote = models.RoundVote(
+            poll_id=poll.id,
+            roster_id=roster_entry.id,
+            device_token=device_token
+        )
+        db.add(round_vote)
     
-    participant.has_voted = True
-    participant.voted_option = vote.option
-    participant.voted_at = models.func.now()
-    participant.last_vote_attempt_id = vote.vote_attempt_id
-    participant.device_token = device_token
+    round_vote.has_voted = True
+    round_vote.voted_option = vote.option
+    round_vote.voted_at = models.func.now()
+    round_vote.last_vote_attempt_id = vote.vote_attempt_id
+    if not round_vote.device_token:
+        round_vote.device_token = device_token
     
     # Add vote event for analytics
     db.add(models.VoteEvent(poll_id=poll.id, option=vote.option))
@@ -171,8 +188,8 @@ def get_session_leaderboard(session_id: str, db: Session = Depends(get_db)):
         counts = p.final_counts or {"A": 0, "B": 0, "total": 0}
         total = counts.get("total", 0)
         
-        roster_size = db.query(models.Participant).filter(models.Participant.poll_id == p.id).count()
-        voted_count = db.query(models.Participant).filter(models.Participant.poll_id == p.id, models.Participant.has_voted == True).count()
+        roster_size = db.query(models.Roster).filter(models.Roster.session_id == session_id).count()
+        voted_count = db.query(models.RoundVote).filter(models.RoundVote.poll_id == p.id, models.RoundVote.has_voted == True).count()
         
         percentages = {
             "A": round((counts.get("A", 0) / total * 100), 1) if total > 0 else 0,

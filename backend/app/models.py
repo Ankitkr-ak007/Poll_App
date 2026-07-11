@@ -39,12 +39,24 @@ class Poll(Base):
         CheckConstraint("status IN ('draft', 'active', 'closed')", name="status_check"),
     )
 
-class Participant(Base):
-    __tablename__ = "participants"
+class Roster(Base):
+    __tablename__ = "roster"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"))
+    name = Column(String, nullable=False)
+    vote_code = Column(String, unique=True, nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint("session_id", "name", name="uq_session_name"),
+    )
 
+class RoundVote(Base):
+    __tablename__ = "round_votes"
+    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     poll_id = Column(UUID(as_uuid=True), ForeignKey("polls.id"))
-    name = Column(String, nullable=False)
+    roster_id = Column(UUID(as_uuid=True), ForeignKey("roster.id"))
     has_voted = Column(Boolean, default=False)
     voted_option = Column(String(1), nullable=True)
     voted_at = Column(DateTime(timezone=True), nullable=True)
@@ -52,10 +64,10 @@ class Participant(Base):
     device_token = Column(String, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("voted_option IN ('A', 'B')", name="voted_option_check"),
-        UniqueConstraint("poll_id", "name", name="uq_poll_participant"),
-        Index("ix_participants_poll_status", "poll_id", "has_voted"),
-        Index("ix_participants_poll_device", "poll_id", "device_token"),
+        CheckConstraint("voted_option IN ('A', 'B')", name="round_vote_option_check"),
+        UniqueConstraint("poll_id", "roster_id", name="uq_poll_roster"),
+        Index("ix_round_votes_poll_status", "poll_id", "has_voted"),
+        Index("ix_round_votes_poll_device", "poll_id", "device_token"),
     )
 
 class VoteEvent(Base):

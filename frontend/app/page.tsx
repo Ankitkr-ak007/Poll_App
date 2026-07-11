@@ -23,6 +23,7 @@ export default function VoterPage() {
   const [search, setSearch] = useState('');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [voteCode, setVoteCode] = useState('');
   const [selectedOption, setSelectedOption] = useState<'A' | 'B' | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +54,7 @@ export default function VoterPage() {
             setStatusMsg(null);
             setSelectedOption(null);
             setSelectedParticipant(null);
+            setVoteCode('');
             setSearch('');
           }
           return data;
@@ -102,7 +104,7 @@ export default function VoterPage() {
   }, [search, selectedParticipant]);
 
   const handleSubmit = async () => {
-    if (!selectedParticipant || !selectedOption) return;
+    if (!selectedParticipant || !selectedOption || !voteCode) return;
     setStatusMsg(null);
     setSubmitting(true);
 
@@ -113,6 +115,7 @@ export default function VoterPage() {
         credentials: 'include',
         body: JSON.stringify({
           participant_id: selectedParticipant.id,
+          vote_code: voteCode,
           option: selectedOption,
           vote_attempt_id: voteAttemptId
         })
@@ -122,6 +125,7 @@ export default function VoterPage() {
         setStatusMsg({ type: 'success', text: `Your vote has been recorded securely.` });
         setSelectedOption(null);
         setSelectedParticipant(null);
+        setVoteCode('');
         setSearch('');
       } else {
         const data = await res.json();
@@ -197,14 +201,23 @@ export default function VoterPage() {
             <div className="relative">
               <label className="block text-sm font-semibold text-zinc-400 mb-3 uppercase tracking-wider ml-2">Who are you?</label>
               {selectedParticipant ? (
-                <div className="flex items-center justify-between p-5 bg-brand/10 border border-brand/30 rounded-2xl">
-                  <span className="font-bold text-brand text-xl">{selectedParticipant.name}</span>
-                  <button 
-                    onClick={() => { setSelectedParticipant(null); setSearch(''); }} 
-                    className="text-brand hover:text-brand-dark bg-brand/20 px-4 py-2 rounded-xl text-sm transition-colors font-semibold"
-                  >
-                    Change
-                  </button>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-5 bg-brand/10 border border-brand/30 rounded-2xl">
+                    <span className="font-bold text-brand text-xl">{selectedParticipant.name}</span>
+                    <button 
+                      onClick={() => { setSelectedParticipant(null); setSearch(''); setVoteCode(''); }} 
+                      className="text-brand hover:text-brand-dark bg-brand/20 px-4 py-2 rounded-xl text-sm transition-colors font-semibold"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={voteCode}
+                    onChange={(e) => setVoteCode(e.target.value.trim())}
+                    placeholder="Enter your Passcode"
+                    className="w-full px-5 py-4 bg-bg-dark border border-surface-highlight rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all text-lg placeholder-zinc-500 font-mono tracking-wider"
+                  />
                 </div>
               ) : (
                 <div className="relative">
@@ -289,7 +302,7 @@ export default function VoterPage() {
 
             <button
               onClick={handleSubmit}
-              disabled={!selectedParticipant || !selectedOption || submitting}
+              disabled={!selectedParticipant || !selectedOption || !voteCode || submitting}
               className="w-full mt-4 bg-white text-bg-dark disabled:opacity-50 disabled:bg-surface-highlight disabled:text-zinc-500 py-5 rounded-2xl font-black text-lg transition-all active:scale-[0.98] disabled:active:scale-100 uppercase tracking-widest disabled:shadow-none shadow-[0_0_20px_rgba(255,255,255,0.1)] flex items-center justify-center"
             >
               {submitting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Submit Vote"}

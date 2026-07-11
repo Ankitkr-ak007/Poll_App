@@ -8,7 +8,10 @@ from ..ws_manager import manager
 from .. import tally_cache
 import io
 import csv
+import io
+import csv
 import json
+import secrets
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -167,11 +170,6 @@ async def next_round_poll(db: Session = Depends(get_db), current_admin: models.A
     )
     db.add(new_poll)
     db.flush()
-    
-    # Copy participants for the new poll (until roster schema refactor)
-    old_participants = db.query(models.Participant).filter(models.Participant.poll_id == poll.id).all()
-    for p in old_participants:
-        db.add(models.Participant(poll_id=new_poll.id, name=p.name))
         
     db.add(models.AdminAuditLog(admin_id=current_admin.id, action="next_round_poll", poll_id=new_poll.id))
     db.commit()
@@ -198,12 +196,12 @@ async def reset_current_poll(confirm_data: schemas.ResetConfirm, db: Session = D
     tally_cache.clear_tally(str(poll.id))
     
     # Reset participants' votes completely
-    db.query(models.Participant).filter(models.Participant.poll_id == poll.id).update({
-        models.Participant.has_voted: False,
-        models.Participant.voted_option: None,
-        models.Participant.voted_at: None,
-        models.Participant.device_token: None,
-        models.Participant.last_vote_attempt_id: None
+    db.query(models.RoundVote).filter(models.RoundVote.poll_id == poll.id).update({
+        models.RoundVote.has_voted: False,
+        models.RoundVote.voted_option: None,
+        models.RoundVote.voted_at: None,
+        models.RoundVote.device_token: None,
+        models.RoundVote.last_vote_attempt_id: None
     })
     
     db.add(models.AdminAuditLog(admin_id=current_admin.id, action="reset_current_poll", poll_id=poll.id))
@@ -219,14 +217,16 @@ def get_results(db: Session = Depends(get_db), current_admin: models.Admin = Dep
     if not poll:
         raise HTTPException(status_code=404, detail="Poll not found")
     
-    participants = db.query(models.Participant).filter(models.Participant.poll_id == poll.id).all()
+    rosters = db.query(models.Roster).filter(models.Roster.session_id == poll.session_id).all()
+    round_votes = db.query(models.RoundVote).filter(models.RoundVote.poll_id == poll.id).all()
+    voted_roster_ids = {rv.roster_id for rv in round_votes if rv.has_voted}
     
     tally = tally_cache.get_tally(str(poll.id), db)
     option_a_count = tally["A"]
     option_b_count = tally["B"]
     total = tally["total"]
     
-    participant_statuses = [schemas.ParticipantStatus(name=p.name, has_voted=p.has_voted) for p in participants]
+    participant_statuses = [schemas.ParticipantStatus(name=r.name, has_voted=(r.id in voted_roster_ids), vote_code=r.vote_code) for r in rosters]
     
     return schemas.PollResults(
         option_a=schemas.PollResultOption(text=poll.option_a_text, count=option_a_count),
@@ -241,61 +241,70 @@ def export_poll_csv(poll_id: str, db: Session = Depends(get_db), current_admin: 
     if not poll:
         raise HTTPException(status_code=404, detail="Poll not found")
         
-    participants = db.query(models.Participant).filter(models.Participant.poll_id == poll.id).all()
+    results = db.query(models.Roster, models.RoundVote).outerjoin(
+        models.RoundVote, 
+        (models.RoundVote.roster_id == models.Roster.id) & (models.RoundVote.poll_id == poll.id)
+    ).filter(models.Roster.session_id == poll.session_id).all()
     
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Name", "Has Voted", "Voted Option", "Voted At"])
+    writer.writerow(["Name", "Passcode", "Has Voted", "Voted Option", "Voted At"])
     
-    for p in participants:
-        writer.writerow([
-            p.name, 
-            "Yes" if p.has_voted else "No", 
-            p.voted_option if p.voted_option else "N/A", 
-            p.voted_at.isoformat() if p.voted_at else "N/A"
-        ])
+    for r, rv in results:
+        has_voted = rv.has_voted if rv else False
+        voted_opt = rv.voted_option if rv and rv.voted_option else "N/A"
+        voted_at = rv.voted_at.isoformat() if rv and rv.voted_at else "N/A"
+        writer.writerow([r.name, r.vote_code, "Yes" if has_voted else "No", voted_opt, voted_at])
         
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename=poll_results_{poll_id}.csv"
     return response
 
-@router.post("/participants", response_model=List[schemas.ParticipantResponse])
-def add_participants(bulk_create: schemas.ParticipantBulkCreate, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+@router.post("/roster", response_model=List[schemas.RosterResponse])
+def add_roster(bulk_create: schemas.RosterBulkCreate, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
-    if not poll:
-        raise HTTPException(status_code=400, detail="Create a poll first")
+    if not poll or not poll.session_id:
+        raise HTTPException(status_code=400, detail="Create a session first")
     
-    created_participants = []
+    created_rosters = []
     for name in bulk_create.names:
         name = name.strip()
         if not name:
             continue
-        existing = db.query(models.Participant).filter(
-            models.Participant.poll_id == poll.id,
-            models.Participant.name == name
+        existing = db.query(models.Roster).filter(
+            models.Roster.session_id == poll.session_id,
+            models.Roster.name == name
         ).first()
         if not existing:
-            new_participant = models.Participant(poll_id=poll.id, name=name)
-            db.add(new_participant)
-            created_participants.append(new_participant)
+            new_roster = models.Roster(
+                session_id=poll.session_id, 
+                name=name,
+                vote_code=secrets.token_urlsafe(6)
+            )
+            db.add(new_roster)
+            created_rosters.append(new_roster)
     
     db.commit()
-    for p in created_participants:
-        db.refresh(p)
-    return created_participants
+    for r in created_rosters:
+        db.refresh(r)
+    return created_rosters
 
-@router.get("/participants", response_model=List[schemas.ParticipantResponse])
-def get_participants(db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+@router.get("/roster", response_model=List[schemas.RosterResponse])
+def get_roster(db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
-    if not poll:
+    if not poll or not poll.session_id:
         return []
-    return db.query(models.Participant).filter(models.Participant.poll_id == poll.id).all()
+    return db.query(models.Roster).filter(models.Roster.session_id == poll.session_id).order_by(models.Roster.name.asc()).all()
 
-@router.delete("/participants/{participant_id}")
-def delete_participant(participant_id: str, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
-    participant = db.query(models.Participant).filter(models.Participant.id == participant_id).first()
-    if not participant:
-        raise HTTPException(status_code=404, detail="Participant not found")
-    db.delete(participant)
+@router.delete("/roster/{roster_id}")
+def delete_roster(roster_id: str, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+    roster = db.query(models.Roster).filter(models.Roster.id == roster_id).first()
+    if not roster:
+        raise HTTPException(status_code=404, detail="Roster not found")
+    
+    # Optional: cleanup round_votes if you want cascading, though sqlite cascades if configured
+    db.query(models.RoundVote).filter(models.RoundVote.roster_id == roster.id).delete()
+    
+    db.delete(roster)
     db.commit()
     return {"status": "ok"}

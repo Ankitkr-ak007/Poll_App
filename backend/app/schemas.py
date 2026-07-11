@@ -14,15 +14,23 @@ class AdminLogin(BaseModel):
     username: str
     password: str
 
-class ParticipantBase(BaseModel):
+class RosterBase(BaseModel):
     name: str
 
-class ParticipantCreate(ParticipantBase):
+class RosterCreate(RosterBase):
     pass
 
-class ParticipantResponse(ParticipantBase):
+class RosterResponse(RosterBase):
+    id: UUID
+    session_id: UUID
+    vote_code: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class RoundVoteResponse(BaseModel):
     id: UUID
     poll_id: UUID
+    roster_id: UUID
     has_voted: bool
     voted_option: Optional[str] = None
     voted_at: Optional[datetime] = None
@@ -35,7 +43,7 @@ class ParticipantPublic(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class ParticipantBulkCreate(BaseModel):
+class RosterBulkCreate(BaseModel):
     names: List[str]
 
 class SessionCreate(BaseModel):
@@ -72,6 +80,7 @@ class PollResponse(PollBase):
 
 class VoteCreate(BaseModel):
     participant_id: UUID
+    vote_code: str
     option: str
     vote_attempt_id: str
 
@@ -82,6 +91,7 @@ class PollResultOption(BaseModel):
 class ParticipantStatus(BaseModel):
     name: str
     has_voted: bool
+    vote_code: Optional[str] = None
 
 class PollResults(BaseModel):
     option_a: PollResultOption

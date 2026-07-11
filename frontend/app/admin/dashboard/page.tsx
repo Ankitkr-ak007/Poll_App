@@ -15,6 +15,7 @@ type Poll = {
 type ParticipantStatus = {
   name: string;
   has_voted: boolean;
+  vote_code?: string;
 };
 
 type PollResults = {
@@ -321,6 +322,7 @@ export default function AdminDashboard() {
                     <thead className="sticky top-0 bg-bg-dark text-zinc-400 z-10 border-b border-surface-highlight">
                       <tr>
                         <th className="px-4 py-3 font-semibold tracking-wide">Name</th>
+                        <th className="px-4 py-3 font-semibold tracking-wide">Passcode</th>
                         <th className="px-4 py-3 font-semibold tracking-wide text-right">Status</th>
                       </tr>
                     </thead>
@@ -328,6 +330,7 @@ export default function AdminDashboard() {
                       {results.participants.map((p, idx) => (
                         <tr key={idx} className="hover:bg-surface transition-colors">
                           <td className="px-4 py-3 font-medium text-zinc-300">{p.name}</td>
+                          <td className="px-4 py-3 font-mono text-zinc-400 select-all">{p.vote_code || '---'}</td>
                           <td className="px-4 py-3 text-right">
                             {p.has_voted ? (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">Voted</span>
@@ -339,7 +342,7 @@ export default function AdminDashboard() {
                       ))}
                       {results.participants.length === 0 && (
                         <tr>
-                          <td colSpan={2} className="px-4 py-8 text-center text-zinc-500">No participants added yet.</td>
+                          <td colSpan={3} className="px-4 py-8 text-center text-zinc-500">No participants added yet.</td>
                         </tr>
                       )}
                     </tbody>
