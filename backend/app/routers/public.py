@@ -61,6 +61,8 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = De
         raise HTTPException(status_code=404, detail="Participant not found")
     
     if participant.has_voted:
+        if participant.last_vote_attempt_id == vote.vote_attempt_id:
+            return {"status": "ok", "idempotent": True}
         raise HTTPException(status_code=409, detail="Already voted")
     
     if vote.option not in ['A', 'B']:
@@ -69,6 +71,7 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = De
     participant.has_voted = True
     participant.voted_option = vote.option
     participant.voted_at = models.func.now()
+    participant.last_vote_attempt_id = vote.vote_attempt_id
     
     # Add vote event for analytics
     db.add(models.VoteEvent(poll_id=poll.id, option=vote.option))

@@ -72,6 +72,7 @@ class PollResponse(PollBase):
 class VoteCreate(BaseModel):
     participant_id: UUID
     option: str
+    vote_attempt_id: str
 
 class PollResultOption(BaseModel):
     text: str

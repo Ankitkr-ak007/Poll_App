@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Search, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 type Poll = {
   id: string;
@@ -26,10 +27,13 @@ export default function VoterPage() {
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [voteAttemptId, setVoteAttemptId] = useState<string>('');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
+    setVoteAttemptId(crypto.randomUUID());
     fetchPoll();
     const interval = setInterval(fetchPoll, 5000);
     return () => clearInterval(interval);
@@ -49,6 +53,7 @@ export default function VoterPage() {
 
   useEffect(() => {
     if (search.length > 0 && !selectedParticipant) {
+      setIsSearching(true);
       const fetchParticipants = async () => {
         try {
           const res = await fetch(`${API_URL}/api/participants/search?q=${encodeURIComponent(search)}`);
@@ -58,9 +63,10 @@ export default function VoterPage() {
         } catch (e) {
           console.error(e);
         }
+        setIsSearching(false);
       };
       const debounce = setTimeout(fetchParticipants, 300);
-      return () => clearTimeout(debounce);
+      return () => { clearTimeout(debounce); setIsSearching(false); };
     } else {
       setParticipants([]);
     }
@@ -77,7 +83,8 @@ export default function VoterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           participant_id: selectedParticipant.id,
-          option: selectedOption
+          option: selectedOption,
+          vote_attempt_id: voteAttemptId
         })
       });
 
@@ -107,12 +114,25 @@ export default function VoterPage() {
     );
   }
 
-  if (!poll || poll.status !== 'active') {
+  if (!poll || poll.status === 'draft') {
     return (
       <div className="min-h-screen bg-bg-dark text-white flex flex-col items-center justify-center p-6 text-center font-inter">
         <div className="bg-surface p-10 rounded-[2rem] border border-surface-highlight shadow-2xl max-w-lg w-full">
-          <h1 className="text-3xl font-bold mb-3 text-white tracking-tight font-outfit">{poll?.status === 'closed' ? 'Voting is closed' : 'No active poll'}</h1>
-          <p className="text-zinc-400 text-lg">Please wait for the admin to open the next round of voting.</p>
+          <h1 className="text-3xl font-bold mb-3 text-white tracking-tight font-outfit">Voting hasn't started yet</h1>
+          <p className="text-zinc-400 text-lg">Check back in a moment.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (poll.status === 'closed') {
+    return (
+      <div className="min-h-screen bg-bg-dark text-white flex flex-col items-center justify-center p-6 text-center font-inter">
+        <div className="bg-surface p-10 rounded-[2rem] border border-surface-highlight shadow-2xl max-w-lg w-full">
+          <h1 className="text-3xl font-bold mb-3 text-white tracking-tight font-outfit">Voting has ended</h1>
+          <Link href={`/results/${poll.id}`} className="mt-4 inline-block bg-brand hover:bg-brand-dark px-6 py-3 rounded-xl font-semibold transition-all text-white">
+            View Results
+          </Link>
         </div>
       </div>
     );
@@ -173,6 +193,17 @@ export default function VoterPage() {
                   </div>
                   
                   <AnimatePresence>
+                    {search.length > 0 && participants.length === 0 && !selectedParticipant && !isSearching && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-10 w-full mt-2 bg-surface-highlight border border-zinc-700 rounded-2xl shadow-2xl p-6 text-center"
+                      >
+                        <p className="text-zinc-300 font-medium">Can't find your name?</p>
+                        <p className="text-zinc-500 text-sm mt-1">Check with an organizer</p>
+                      </motion.div>
+                    )}
                     {participants.length > 0 && (
                       <motion.ul 
                         initial={{ opacity: 0, y: -10 }}

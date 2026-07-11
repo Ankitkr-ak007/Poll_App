@@ -51,6 +51,13 @@ export default function PollResultsPage({ params }: { params: Promise<{ pollId: 
 
     const connect = () => {
       ws = new WebSocket(`${WS_URL}/ws/poll/${pollId}`);
+      ws.onopen = () => {
+        // Fetch full snapshot on successful connect/reconnect
+        fetch(`${API_URL}/api/results/${pollId}`)
+          .then(r => r.json())
+          .then(data => setResult(data));
+      };
+      
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'vote') {

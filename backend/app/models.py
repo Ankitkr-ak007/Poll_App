@@ -47,6 +47,7 @@ class Participant(Base):
     has_voted = Column(Boolean, default=False)
     voted_option = Column(String(1), nullable=True)
     voted_at = Column(DateTime(timezone=True), nullable=True)
+    last_vote_attempt_id = Column(String, nullable=True)
 
     __table_args__ = (
         CheckConstraint("voted_option IN ('A', 'B')", name="voted_option_check"),
