@@ -11,6 +11,7 @@ RATE_LIMIT_WINDOW = 5 # seconds
 
 from ..database import get_db
 from ..ws_manager import manager
+from .. import tally_cache
 
 router = APIRouter(prefix="/api", tags=["public"])
 
@@ -75,15 +76,55 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = De
     db.commit()
     
     # Broadcast to WebSockets
-    option_a_count = db.query(models.Participant).filter(models.Participant.poll_id == poll.id, models.Participant.voted_option == 'A').count()
-    option_b_count = db.query(models.Participant).filter(models.Participant.poll_id == poll.id, models.Participant.voted_option == 'B').count()
-    total = db.query(models.Participant).filter(models.Participant.poll_id == poll.id, models.Participant.has_voted == True).count()
+    tally = tally_cache.increment_tally(str(poll.id), vote.option, db)
     
     await manager.broadcast_poll_results(str(poll.id), {
         "type": "vote",
-        "option_a_count": option_a_count,
-        "option_b_count": option_b_count,
-        "total": total
+        "option_a_count": tally["A"],
+        "option_b_count": tally["B"],
+        "total": tally["total"]
     })
     
     return {"status": "ok"}
+
+@router.get("/results/{poll_id}", response_model=schemas.PublicPollResult)
+def get_public_results(poll_id: str, db: Session = Depends(get_db)):
+    poll = db.query(models.Poll).filter(models.Poll.id == poll_id).first()
+    if not poll:
+        raise HTTPException(status_code=404, detail="Poll not found")
+        
+    if poll.status == "closed":
+        return schemas.PublicPollResult(
+            question=poll.question,
+            option_a_text=poll.option_a_text,
+            option_b_text=poll.option_b_text,
+            status=poll.status,
+            counts=poll.final_counts or {"A": 0, "B": 0, "total": 0},
+            winner_option=poll.winner_option
+        )
+    else:
+        tally = tally_cache.get_tally(poll_id, db)
+        return schemas.PublicPollResult(
+            question=poll.question,
+            option_a_text=poll.option_a_text,
+            option_b_text=poll.option_b_text,
+            status=poll.status,
+            counts=tally,
+            winner_option=None
+        )
+
+@router.get("/results/session/{session_id}", response_model=List[schemas.SessionLeaderboardEntry])
+def get_session_leaderboard(session_id: str, db: Session = Depends(get_db)):
+    polls = db.query(models.Poll).filter(
+        models.Poll.session_id == session_id, 
+        models.Poll.status == "closed"
+    ).order_by(models.Poll.closed_at.desc()).all()
+    
+    return [
+        schemas.SessionLeaderboardEntry(
+            poll_id=p.id,
+            question=p.question,
+            winner_option=p.winner_option,
+            counts=p.final_counts
+        ) for p in polls
+    ]

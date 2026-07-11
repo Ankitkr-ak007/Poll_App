@@ -5,6 +5,7 @@ from typing import List
 from .. import models, schemas, auth
 from ..database import get_db
 from ..ws_manager import manager
+from .. import tally_cache
 import io
 import csv
 import json
@@ -110,6 +111,16 @@ async def close_poll(db: Session = Depends(get_db), current_admin: models.Admin 
     poll.status = "closed"
     poll.closed_at = models.func.now()
     
+    # Save final counts and determine winner
+    tally = tally_cache.get_tally(str(poll.id), db)
+    poll.final_counts = tally
+    if tally["A"] > tally["B"]:
+        poll.winner_option = 'A'
+    elif tally["B"] > tally["A"]:
+        poll.winner_option = 'B'
+    else:
+        poll.winner_option = None # Tie
+    
     db.add(models.AdminAuditLog(admin_id=current_admin.id, action="close_poll", poll_id=poll.id))
     db.commit()
     db.refresh(poll)
@@ -129,6 +140,10 @@ async def reset_poll(confirm_data: schemas.ResetConfirm, db: Session = Depends(g
     
     poll.status = "draft"
     poll.closed_at = None
+    poll.winner_option = None
+    poll.final_counts = None
+    
+    tally_cache.clear_tally(str(poll.id))
     
     # Reset participants' votes
     db.query(models.Participant).update({
@@ -152,9 +167,10 @@ def get_results(db: Session = Depends(get_db), current_admin: models.Admin = Dep
     
     participants = db.query(models.Participant).filter(models.Participant.poll_id == poll.id).all()
     
-    option_a_count = sum(1 for p in participants if p.voted_option == 'A')
-    option_b_count = sum(1 for p in participants if p.voted_option == 'B')
-    total = sum(1 for p in participants if p.has_voted)
+    tally = tally_cache.get_tally(str(poll.id), db)
+    option_a_count = tally["A"]
+    option_b_count = tally["B"]
+    total = tally["total"]
     
     participant_statuses = [schemas.ParticipantStatus(name=p.name, has_voted=p.has_voted) for p in participants]
     

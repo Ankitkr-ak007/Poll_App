@@ -1,6 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, CheckConstraint, UniqueConstraint, Integer
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, CheckConstraint, UniqueConstraint, Integer, Index
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -31,6 +31,8 @@ class Poll(Base):
     status = Column(String, default="draft", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     closed_at = Column(DateTime(timezone=True), nullable=True)
+    winner_option = Column(String(1), nullable=True)
+    final_counts = Column(JSONB, nullable=True)
 
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'active', 'closed')", name="status_check"),
@@ -49,6 +51,7 @@ class Participant(Base):
     __table_args__ = (
         CheckConstraint("voted_option IN ('A', 'B')", name="voted_option_check"),
         UniqueConstraint("poll_id", "name", name="uq_poll_participant"),
+        Index("ix_participants_poll_status", "poll_id", "has_voted"),
     )
 
 class VoteEvent(Base):
@@ -61,6 +64,7 @@ class VoteEvent(Base):
 
     __table_args__ = (
         CheckConstraint("option IN ('A', 'B')", name="vote_event_option_check"),
+        Index("ix_vote_events_poll_time", "poll_id", "created_at"),
     )
 
 class AdminAuditLog(Base):

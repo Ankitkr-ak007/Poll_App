@@ -90,3 +90,16 @@ class PollResults(BaseModel):
 class ResetConfirm(BaseModel):
     confirm: bool
 
+class PublicPollResult(BaseModel):
+    question: str
+    option_a_text: str
+    option_b_text: str
+    status: str
+    counts: dict
+    winner_option: Optional[str] = None
+
+class SessionLeaderboardEntry(BaseModel):
+    poll_id: UUID
+    question: str
+    winner_option: Optional[str] = None
+    counts: Optional[dict] = None

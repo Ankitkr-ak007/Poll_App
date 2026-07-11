@@ -82,6 +82,9 @@ export default function VoterPage() {
       });
 
       if (res.ok) {
+        if (poll) {
+          localStorage.setItem(`vote_${poll.id}`, selectedOption);
+        }
         setStatusMsg({ type: 'success', text: 'Your vote has been recorded securely.' });
         setSelectedOption(null);
         setSelectedParticipant(null);
