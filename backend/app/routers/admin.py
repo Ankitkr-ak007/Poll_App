@@ -81,11 +81,28 @@ def add_poll_to_session(session_id: str, poll_data: schemas.PollCreate, db: Sess
 def get_poll(db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
     if not poll:
-        # Auto-create draft poll if none exists
-        poll = models.Poll(question="Default Question", option_a_text="Option A", option_b_text="Option B")
+        new_session = models.Session(name="Default Session")
+        db.add(new_session)
+        db.flush()
+        
+        poll = models.Poll(
+            session_id=new_session.id,
+            question="Default Question", 
+            option_a_text="Option A", 
+            option_b_text="Option B"
+        )
         db.add(poll)
         db.commit()
         db.refresh(poll)
+    elif not poll.session_id:
+        new_session = models.Session(name="Legacy Session")
+        db.add(new_session)
+        db.flush()
+        poll.session_id = new_session.id
+        db.query(models.Poll).filter(models.Poll.session_id == None).update({models.Poll.session_id: new_session.id})
+        db.commit()
+        db.refresh(poll)
+        
     return poll
 
 @router.put("/poll", response_model=schemas.PollResponse)
@@ -267,10 +284,18 @@ def add_roster(bulk_create: schemas.RosterBulkCreate, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail="Create a session first")
     
     created_rosters = []
-    for name in bulk_create.names:
-        name = name.strip()
+    for line in bulk_create.names:
+        line = line.strip()
+        if not line:
+            continue
+            
+        parts = [p.strip() for p in line.split(',')]
+        name = parts[0]
         if not name:
             continue
+            
+        vote_code = parts[1] if len(parts) > 1 and parts[1] else secrets.token_urlsafe(6)
+        
         existing = db.query(models.Roster).filter(
             models.Roster.session_id == poll.session_id,
             models.Roster.name == name
@@ -279,7 +304,7 @@ def add_roster(bulk_create: schemas.RosterBulkCreate, db: Session = Depends(get_
             new_roster = models.Roster(
                 session_id=poll.session_id, 
                 name=name,
-                vote_code=secrets.token_urlsafe(6)
+                vote_code=vote_code
             )
             db.add(new_roster)
             created_rosters.append(new_roster)

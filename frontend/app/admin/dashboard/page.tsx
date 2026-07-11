@@ -306,12 +306,12 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold mb-6 border-b border-surface-highlight pb-3 tracking-tight font-outfit">Roster Management <span className="text-sm font-normal text-zinc-500 ml-2">({results.participants.length} total)</span></h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-1 flex flex-col">
-                <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">Bulk Add (one per line)</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">Bulk Add (Name, Passcode optionally)</label>
                 <textarea 
                   value={bulkNames} 
                   onChange={e => setBulkNames(e.target.value)}
                   className="w-full flex-grow min-h-[160px] px-4 py-3 bg-bg-dark border border-surface-highlight rounded-xl focus:ring-2 focus:ring-brand focus:border-brand outline-none resize-none transition-all placeholder-zinc-600 custom-scrollbar"
-                  placeholder="John Doe&#10;Jane Smith"
+                  placeholder="John Doe&#10;Jane Smith, 12345"
                 />
                 <button onClick={handleAddParticipants} className="mt-4 w-full bg-surface-highlight hover:bg-zinc-600 py-3 rounded-xl font-semibold transition-all border border-surface-highlight shadow-sm active:scale-[0.98]">Add Participants</button>
               </div>

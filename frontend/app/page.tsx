@@ -201,23 +201,14 @@ export default function VoterPage() {
             <div className="relative">
               <label className="block text-sm font-semibold text-zinc-400 mb-3 uppercase tracking-wider ml-2">Who are you?</label>
               {selectedParticipant ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-5 bg-brand/10 border border-brand/30 rounded-2xl">
-                    <span className="font-bold text-brand text-xl">{selectedParticipant.name}</span>
-                    <button 
-                      onClick={() => { setSelectedParticipant(null); setSearch(''); setVoteCode(''); }} 
-                      className="text-brand hover:text-brand-dark bg-brand/20 px-4 py-2 rounded-xl text-sm transition-colors font-semibold"
-                    >
-                      Change
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={voteCode}
-                    onChange={(e) => setVoteCode(e.target.value.trim())}
-                    placeholder="Enter your Passcode"
-                    className="w-full px-5 py-4 bg-bg-dark border border-surface-highlight rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all text-lg placeholder-zinc-500 font-mono tracking-wider"
-                  />
+                <div className="flex items-center justify-between p-5 bg-brand/10 border border-brand/30 rounded-2xl">
+                  <span className="font-bold text-brand text-xl">{selectedParticipant.name}</span>
+                  <button 
+                    onClick={() => { setSelectedParticipant(null); setSearch(''); }} 
+                    className="text-brand hover:text-brand-dark bg-brand/20 px-4 py-2 rounded-xl text-sm transition-colors font-semibold"
+                  >
+                    Change
+                  </button>
                 </div>
               ) : (
                 <div className="relative">
@@ -265,6 +256,18 @@ export default function VoterPage() {
                   </AnimatePresence>
                 </div>
               )}
+            </div>
+
+            {/* Passcode Entry */}
+            <div className="relative pt-2">
+              <label className="block text-sm font-semibold text-zinc-400 mb-3 uppercase tracking-wider ml-2">Passcode</label>
+              <input
+                type="text"
+                value={voteCode}
+                onChange={(e) => setVoteCode(e.target.value.trim())}
+                placeholder="Enter your Passcode"
+                className="w-full px-5 py-4 bg-bg-dark border border-surface-highlight rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all text-lg placeholder-zinc-500 font-mono tracking-wider"
+              />
             </div>
 
             {/* Voting Options */}
