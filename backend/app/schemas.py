@@ -75,6 +75,7 @@ class PollResponse(PollBase):
     status: str
     created_at: datetime
     closed_at: Optional[datetime] = None
+    ranking_published: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

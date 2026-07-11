@@ -21,6 +21,14 @@ def get_public_poll(db: Session = Depends(get_db)):
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
     if not poll:
         raise HTTPException(status_code=404, detail="No poll found")
+    
+    ranking_published = False
+    if poll.session_id:
+        session = db.query(models.Session).filter(models.Session.id == poll.session_id).first()
+        if session:
+            ranking_published = session.ranking_published
+            
+    poll.ranking_published = ranking_published
     return poll
 
 @router.get("/participants/search", response_model=List[schemas.ParticipantPublic])

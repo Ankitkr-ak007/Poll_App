@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, Search, Loader2 } from 'lucide-react';
+import { CheckCircle, Search, Loader2, Trophy } from 'lucide-react';
 import Link from 'next/link';
 
 type Poll = {
   id: string;
+  session_id: string;
   question: string;
   option_a_text: string;
   option_b_text: string;
   status: 'draft' | 'active' | 'closed';
+  ranking_published?: boolean;
 };
 
 type Participant = {
@@ -191,6 +193,17 @@ export default function VoterPage() {
           </div>
           <h2 className="text-3xl font-bold text-emerald-400 mb-3 font-outfit">Vote Recorded</h2>
           <p className="text-zinc-300 text-lg">{statusMsg.text}</p>
+          
+          {poll?.ranking_published && (
+            <button 
+              onClick={() => window.open(`/results/${poll.session_id}`, '_blank')}
+              className="mt-8 px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-500/20 flex items-center gap-2 mx-auto"
+            >
+              <Trophy size={20} />
+              View Live Results
+            </button>
+          )}
+
           <p className="text-sm text-zinc-500 mt-8 font-medium">You can now close this tab.</p>
         </motion.div>
       </div>
@@ -204,6 +217,26 @@ export default function VoterPage() {
           <h1 className="text-3xl sm:text-4xl font-black text-center mb-10 leading-tight tracking-tight font-outfit">
             {poll.question}
           </h1>
+
+          {poll.ranking_published && (
+            <div className="mb-8 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                  <span className="text-indigo-400 text-xl">🏆</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-indigo-100">Live Results Available</h3>
+                  <p className="text-indigo-300/70 text-sm">The admin has published the rankings.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => window.open(`/results/${poll.session_id}`, '_blank')}
+                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-500/20"
+              >
+                View
+              </button>
+            </div>
+          )}
 
           <div className="space-y-8">
             {/* Identity Selection */}

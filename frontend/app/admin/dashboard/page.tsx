@@ -200,17 +200,27 @@ export default function AdminDashboard() {
           </div>
           <div className="space-x-4 flex items-center">
             {sessionObj && (
-              <button 
-                onClick={handleTogglePublish}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 border ${
-                  sessionObj.ranking_published 
-                    ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-amber-500/30' 
-                    : 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 border-indigo-500/30'
-                }`}
-              >
-                {sessionObj.ranking_published ? <EyeOff size={18} /> : <Eye size={18} />}
-                {sessionObj.ranking_published ? "Unpublish Ranking" : "Publish Ranking"}
-              </button>
+              <div className="flex gap-2 items-center">
+                <button 
+                  onClick={handleTogglePublish}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 border ${
+                    sessionObj.ranking_published 
+                      ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-amber-500/30' 
+                      : 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 border-indigo-500/30'
+                  }`}
+                >
+                  {sessionObj.ranking_published ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {sessionObj.ranking_published ? "Unpublish Ranking" : "Publish Ranking"}
+                </button>
+                {sessionObj.ranking_published && (
+                  <button 
+                    onClick={() => window.open(`/results/${sessionObj.id}`, '_blank')}
+                    className="flex items-center gap-2 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 border border-indigo-500/30 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200"
+                  >
+                    View Ranking
+                  </button>
+                )}
+              </div>
             )}
             <button 
               onClick={() => window.open('/present', '_blank')}
