@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ExternalLink, Download } from 'lucide-react';
+import { ExternalLink, Download, Eye, EyeOff } from 'lucide-react';
 
 type Poll = {
   id: string;
@@ -30,6 +30,7 @@ export default function AdminDashboard() {
 
   const [poll, setPoll] = useState<Poll | null>(null);
   const [results, setResults] = useState<PollResults | null>(null);
+  const [sessionObj, setSessionObj] = useState<{ id: string, name: string, ranking_published: boolean } | null>(null);
   
   // Edit Form State
   const [question, setQuestion] = useState('');
@@ -69,6 +70,16 @@ export default function AdminDashboard() {
       setQuestion(data.question);
       setOptA(data.option_a_text);
       setOptB(data.option_b_text);
+      if (data.session_id) {
+        fetchSession(t, data.session_id);
+      }
+    }
+  };
+
+  const fetchSession = async (t: string, sessionId: string) => {
+    const res = await fetch(`${API_URL}/api/admin/session/${sessionId}`, { headers: { 'Authorization': `Bearer ${t}` } });
+    if (res.ok) {
+      setSessionObj(await res.json());
     }
   };
 
@@ -116,6 +127,17 @@ export default function AdminDashboard() {
       fetchPoll(token!);
       fetchResults(token!);
     }
+  };
+
+  const handleTogglePublish = async () => {
+    if (!sessionObj) return;
+    const newState = !sessionObj.ranking_published;
+    await fetch(`${API_URL}/api/admin/session/${sessionObj.id}/ranking-publish`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ published: newState })
+    });
+    fetchSession(token!, sessionObj.id);
   };
 
   const handleAddParticipants = async () => {
@@ -176,6 +198,19 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="space-x-4 flex items-center">
+            {sessionObj && (
+              <button 
+                onClick={handleTogglePublish}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 border ${
+                  sessionObj.ranking_published 
+                    ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-amber-500/30' 
+                    : 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 border-indigo-500/30'
+                }`}
+              >
+                {sessionObj.ranking_published ? <EyeOff size={18} /> : <Eye size={18} />}
+                {sessionObj.ranking_published ? "Unpublish Ranking" : "Publish Ranking"}
+              </button>
+            )}
             <button 
               onClick={() => window.open('/present', '_blank')}
               className="flex items-center gap-2 bg-surface-highlight hover:bg-zinc-600 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200"

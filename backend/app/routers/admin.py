@@ -32,6 +32,27 @@ def create_session(session_data: schemas.SessionCreate, db: Session = Depends(ge
     db.refresh(new_session)
     return new_session
 
+@router.get("/session/{session_id}", response_model=schemas.SessionResponse)
+def get_session(session_id: str, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+    session_obj = db.query(models.Session).filter(models.Session.id == session_id).first()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session_obj
+
+@router.patch("/session/{session_id}/ranking-publish", response_model=schemas.SessionResponse)
+def toggle_ranking_publish(session_id: str, payload: schemas.RankingPublishRequest, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+    session_obj = db.query(models.Session).filter(models.Session.id == session_id).first()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session_obj.ranking_published = payload.published
+    
+    db.add(models.AdminAuditLog(admin_id=current_admin.id, action=f"ranking_publish_{payload.published}", poll_id=None))
+    db.commit()
+    db.refresh(session_obj)
+    
+    return session_obj
+
 @router.post("/session/{session_id}/polls", response_model=schemas.PollResponse)
 def add_poll_to_session(session_id: str, poll_data: schemas.PollCreate, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
     session_obj = db.query(models.Session).filter(models.Session.id == session_id).first()

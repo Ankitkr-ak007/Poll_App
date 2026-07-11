@@ -152,18 +152,48 @@ def get_public_results(poll_id: str, db: Session = Depends(get_db)):
             winner_option=None
         )
 
-@router.get("/results/session/{session_id}", response_model=List[schemas.SessionLeaderboardEntry])
+@router.get("/results/session/{session_id}", response_model=schemas.PublicSessionRankingResponse)
 def get_session_leaderboard(session_id: str, db: Session = Depends(get_db)):
+    session_obj = db.query(models.Session).filter(models.Session.id == session_id).first()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    if not session_obj.ranking_published:
+        return schemas.PublicSessionRankingResponse(published=False, rounds=None)
+        
     polls = db.query(models.Poll).filter(
         models.Poll.session_id == session_id, 
         models.Poll.status == "closed"
     ).order_by(models.Poll.closed_at.desc()).all()
     
-    return [
-        schemas.SessionLeaderboardEntry(
+    rounds = []
+    for p in polls:
+        counts = p.final_counts or {"A": 0, "B": 0, "total": 0}
+        total = counts.get("total", 0)
+        
+        roster_size = db.query(models.Participant).filter(models.Participant.poll_id == p.id).count()
+        voted_count = db.query(models.Participant).filter(models.Participant.poll_id == p.id, models.Participant.has_voted == True).count()
+        
+        percentages = {
+            "A": round((counts.get("A", 0) / total * 100), 1) if total > 0 else 0,
+            "B": round((counts.get("B", 0) / total * 100), 1) if total > 0 else 0
+        }
+        
+        result_label = None
+        if counts.get("A", 0) > counts.get("B", 0):
+            result_label = "A"
+        elif counts.get("B", 0) > counts.get("A", 0):
+            result_label = "B"
+            
+        rounds.append(schemas.RoundRanking(
             poll_id=p.id,
             question=p.question,
-            winner_option=p.winner_option,
-            counts=p.final_counts
-        ) for p in polls
-    ]
+            option_a_text=p.option_a_text,
+            option_b_text=p.option_b_text,
+            counts=counts,
+            percentages=percentages,
+            participation={"voted": voted_count, "total": roster_size},
+            result_label=result_label
+        ))
+    
+    return schemas.PublicSessionRankingResponse(published=True, rounds=rounds)

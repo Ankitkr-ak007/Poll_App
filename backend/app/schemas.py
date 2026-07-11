@@ -45,6 +45,7 @@ class SessionResponse(BaseModel):
     id: UUID
     name: str
     created_at: datetime
+    ranking_published: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -109,3 +110,20 @@ class VoteStatusResponse(BaseModel):
     already_voted: bool
     name: Optional[str] = None
     option: Optional[str] = None
+
+class RankingPublishRequest(BaseModel):
+    published: bool
+
+class RoundRanking(BaseModel):
+    poll_id: UUID
+    question: str
+    option_a_text: str
+    option_b_text: str
+    counts: dict
+    percentages: dict
+    participation: dict
+    result_label: Optional[str] = None
+
+class PublicSessionRankingResponse(BaseModel):
+    published: bool
+    rounds: Optional[List[RoundRanking]] = None
