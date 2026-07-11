@@ -95,12 +95,23 @@ export default function AdminDashboard() {
     fetchPoll(token!);
   };
 
-  const handleReset = async () => {
-    if (confirm("Are you sure you want to reset the poll? This will clear all votes.")) {
-      await fetch(`${API_URL}/api/admin/poll/reset`, {
+  const handleResetCurrent = async () => {
+    if (confirm("Are you sure you want to completely reset the CURRENT round? This clears all votes so far.")) {
+      await fetch(`${API_URL}/api/admin/poll/reset-current`, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ confirm: true })
+      });
+      fetchPoll(token!);
+      fetchResults(token!);
+    }
+  };
+
+  const handleNextRound = async () => {
+    if (confirm("Are you ready to start the next round? This will create a fresh draft poll with the current roster.")) {
+      await fetch(`${API_URL}/api/admin/poll/next-round`, {
+        method: 'POST',
+        headers: authHeaders
       });
       fetchPoll(token!);
       fetchResults(token!);
@@ -184,7 +195,8 @@ export default function AdminDashboard() {
                   <Download size={18} />
                   CSV
                 </button>
-                <button onClick={handleReset} className="bg-brand hover:bg-brand-dark px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 text-white">Reset Round</button>
+                <button onClick={handleResetCurrent} className="bg-red-600/20 text-red-400 hover:bg-red-600/30 px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 border border-red-500/30">Reset Current</button>
+                <button onClick={handleNextRound} className="bg-brand hover:bg-brand-dark px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 text-white shadow-[0_0_15px_rgba(230,57,70,0.3)]">Next Round</button>
               </>
             )}
           </div>

@@ -128,8 +128,39 @@ async def close_poll(db: Session = Depends(get_db), current_admin: models.Admin 
     await manager.broadcast_poll_results(str(poll.id), {"type": "status_update", "status": poll.status})
     return poll
 
-@router.post("/poll/reset", response_model=schemas.PollResponse)
-async def reset_poll(confirm_data: schemas.ResetConfirm, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+@router.post("/poll/next-round", response_model=schemas.PollResponse)
+async def next_round_poll(db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+    poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
+    if not poll:
+        raise HTTPException(status_code=404, detail="Poll not found")
+    if poll.status != "closed":
+        raise HTTPException(status_code=400, detail="Current poll must be closed before starting next round")
+    
+    new_poll = models.Poll(
+        session_id=poll.session_id,
+        order_index=poll.order_index + 1,
+        question=poll.question,
+        option_a_text=poll.option_a_text,
+        option_b_text=poll.option_b_text,
+        status="draft"
+    )
+    db.add(new_poll)
+    db.flush()
+    
+    # Copy participants for the new poll (until roster schema refactor)
+    old_participants = db.query(models.Participant).filter(models.Participant.poll_id == poll.id).all()
+    for p in old_participants:
+        db.add(models.Participant(poll_id=new_poll.id, name=p.name))
+        
+    db.add(models.AdminAuditLog(admin_id=current_admin.id, action="next_round_poll", poll_id=new_poll.id))
+    db.commit()
+    db.refresh(new_poll)
+    
+    await manager.broadcast_poll_results(str(poll.id), {"type": "status_update", "status": "draft", "reset": True})
+    return new_poll
+
+@router.post("/poll/reset-current", response_model=schemas.PollResponse)
+async def reset_current_poll(confirm_data: schemas.ResetConfirm, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
     if not confirm_data.confirm:
         raise HTTPException(status_code=400, detail="Confirmation required")
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
@@ -145,14 +176,16 @@ async def reset_poll(confirm_data: schemas.ResetConfirm, db: Session = Depends(g
     
     tally_cache.clear_tally(str(poll.id))
     
-    # Reset participants' votes
-    db.query(models.Participant).update({
+    # Reset participants' votes completely
+    db.query(models.Participant).filter(models.Participant.poll_id == poll.id).update({
         models.Participant.has_voted: False,
         models.Participant.voted_option: None,
-        models.Participant.voted_at: None
+        models.Participant.voted_at: None,
+        models.Participant.device_token: None,
+        models.Participant.last_vote_attempt_id: None
     })
     
-    db.add(models.AdminAuditLog(admin_id=current_admin.id, action="reset_poll", poll_id=poll.id))
+    db.add(models.AdminAuditLog(admin_id=current_admin.id, action="reset_current_poll", poll_id=poll.id))
     db.commit()
     db.refresh(poll)
     
