@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
 from typing import List
 from .. import models, schemas
 from ..database import get_db
 import time
+import uuid
 
 # Simple in-memory rate limiter for /vote
 IP_RATE_LIMIT = {}
@@ -35,8 +36,27 @@ def search_participants(q: str = "", db: Session = Depends(get_db)):
     participants = query.limit(10).all()
     return participants
 
+@router.get("/vote/status", response_model=schemas.VoteStatusResponse)
+def check_vote_status(poll_id: str, request: Request, response: Response, db: Session = Depends(get_db)):
+    device_token = request.cookies.get("device_token")
+    if not device_token:
+        device_token = str(uuid.uuid4())
+        response.set_cookie(key="device_token", value=device_token, httponly=True, secure=True, samesite="none")
+        return {"already_voted": False}
+    
+    participant = db.query(models.Participant).filter(
+        models.Participant.poll_id == poll_id,
+        models.Participant.device_token == device_token,
+        models.Participant.has_voted == True
+    ).first()
+    
+    if participant:
+        return {"already_voted": True, "name": participant.name, "option": participant.voted_option}
+    
+    return {"already_voted": False}
+
 @router.post("/vote")
-async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = Depends(get_db)):
+async def cast_vote(vote: schemas.VoteCreate, request: Request, response: Response, db: Session = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
     current_time = time.time()
     
@@ -47,6 +67,11 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = De
             raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     
     IP_RATE_LIMIT[client_ip] = current_time
+
+    device_token = request.cookies.get("device_token")
+    if not device_token:
+        device_token = str(uuid.uuid4())
+        response.set_cookie(key="device_token", value=device_token, httponly=True, secure=True, samesite="none")
     
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
     if not poll or poll.status != "active":
@@ -60,6 +85,16 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = De
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
+    # Check if this device already voted as someone else
+    existing_device_vote = db.query(models.Participant).filter(
+        models.Participant.poll_id == poll.id,
+        models.Participant.device_token == device_token,
+        models.Participant.has_voted == True
+    ).first()
+
+    if existing_device_vote and str(existing_device_vote.id) != str(participant.id):
+        raise HTTPException(status_code=409, detail=f"This device already voted as {existing_device_vote.name} in this round.")
+    
     if participant.has_voted:
         if participant.last_vote_attempt_id == vote.vote_attempt_id:
             return {"status": "ok", "idempotent": True}
@@ -72,6 +107,7 @@ async def cast_vote(vote: schemas.VoteCreate, request: Request, db: Session = De
     participant.voted_option = vote.option
     participant.voted_at = models.func.now()
     participant.last_vote_attempt_id = vote.vote_attempt_id
+    participant.device_token = device_token
     
     # Add vote event for analytics
     db.add(models.VoteEvent(poll_id=poll.id, option=vote.option))

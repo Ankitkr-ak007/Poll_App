@@ -47,16 +47,13 @@ export default function VoterPage() {
         
         setPoll(prev => {
           if (!prev || prev.id !== data.id) {
-            // New poll or initial load - check if already voted
-            if (localStorage.getItem(`vote_${data.id}`)) {
-              setStatusMsg({ type: 'success', text: 'You have already voted in this round.' });
-            } else {
-              // Clear previous state for a fresh round
-              setStatusMsg(null);
-              setSelectedOption(null);
-              setSelectedParticipant(null);
-              setSearch('');
-            }
+            // New poll or initial load - check server status
+            checkVoteStatus(data.id);
+            // Clear previous state for a fresh round
+            setStatusMsg(null);
+            setSelectedOption(null);
+            setSelectedParticipant(null);
+            setSearch('');
           }
           return data;
         });
@@ -65,6 +62,22 @@ export default function VoterPage() {
       console.error(e);
     }
     setLoading(false);
+  };
+
+  const checkVoteStatus = async (pollId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/vote/status?poll_id=${pollId}`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.already_voted) {
+          setStatusMsg({ type: 'success', text: `You already voted as ${data.name} in this round.` });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useEffect(() => {
@@ -97,6 +110,7 @@ export default function VoterPage() {
       const res = await fetch(`${API_URL}/api/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           participant_id: selectedParticipant.id,
           option: selectedOption,
@@ -105,10 +119,7 @@ export default function VoterPage() {
       });
 
       if (res.ok) {
-        if (poll) {
-          localStorage.setItem(`vote_${poll.id}`, selectedOption);
-        }
-        setStatusMsg({ type: 'success', text: 'Your vote has been recorded securely.' });
+        setStatusMsg({ type: 'success', text: `Your vote has been recorded securely.` });
         setSelectedOption(null);
         setSelectedParticipant(null);
         setSearch('');

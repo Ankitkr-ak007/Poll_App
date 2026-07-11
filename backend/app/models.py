@@ -48,11 +48,13 @@ class Participant(Base):
     voted_option = Column(String(1), nullable=True)
     voted_at = Column(DateTime(timezone=True), nullable=True)
     last_vote_attempt_id = Column(String, nullable=True)
+    device_token = Column(String, nullable=True)
 
     __table_args__ = (
         CheckConstraint("voted_option IN ('A', 'B')", name="voted_option_check"),
         UniqueConstraint("poll_id", "name", name="uq_poll_participant"),
         Index("ix_participants_poll_status", "poll_id", "has_voted"),
+        Index("ix_participants_poll_device", "poll_id", "device_token"),
     )
 
 class VoteEvent(Base):

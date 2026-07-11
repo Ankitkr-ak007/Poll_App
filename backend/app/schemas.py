@@ -104,3 +104,8 @@ class SessionLeaderboardEntry(BaseModel):
     question: str
     winner_option: Optional[str] = None
     counts: Optional[dict] = None
+
+class VoteStatusResponse(BaseModel):
+    already_voted: bool
+    name: Optional[str] = None
+    option: Optional[str] = None
