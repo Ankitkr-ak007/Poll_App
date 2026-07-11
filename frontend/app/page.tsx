@@ -43,7 +43,23 @@ export default function VoterPage() {
     try {
       const res = await fetch(`${API_URL}/api/poll`);
       if (res.ok) {
-        setPoll(await res.json());
+        const data = await res.json();
+        
+        setPoll(prev => {
+          if (!prev || prev.id !== data.id) {
+            // New poll or initial load - check if already voted
+            if (localStorage.getItem(`vote_${data.id}`)) {
+              setStatusMsg({ type: 'success', text: 'You have already voted in this round.' });
+            } else {
+              // Clear previous state for a fresh round
+              setStatusMsg(null);
+              setSelectedOption(null);
+              setSelectedParticipant(null);
+              setSearch('');
+            }
+          }
+          return data;
+        });
       }
     } catch (e) {
       console.error(e);
