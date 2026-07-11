@@ -35,6 +35,15 @@ export default function VoterPage() {
 
   useEffect(() => {
     setVoteAttemptId(crypto.randomUUID());
+
+    const savedId = localStorage.getItem('saved_participant_id');
+    const savedName = localStorage.getItem('saved_participant_name');
+    const savedCode = localStorage.getItem('saved_vote_code');
+    if (savedId && savedName && savedCode) {
+      setSelectedParticipant({ id: savedId, name: savedName });
+      setVoteCode(savedCode);
+    }
+
     fetchPoll();
     const interval = setInterval(fetchPoll, 5000);
     return () => clearInterval(interval);
@@ -50,11 +59,8 @@ export default function VoterPage() {
           if (!prev || prev.id !== data.id) {
             // New poll or initial load - check server status
             checkVoteStatus(data.id);
-            // Clear previous state for a fresh round
             setStatusMsg(null);
             setSelectedOption(null);
-            setSelectedParticipant(null);
-            setVoteCode('');
             setSearch('');
           }
           return data;
@@ -123,9 +129,12 @@ export default function VoterPage() {
 
       if (res.ok) {
         setStatusMsg({ type: 'success', text: `Your vote has been recorded securely.` });
+        
+        localStorage.setItem('saved_participant_id', selectedParticipant.id);
+        localStorage.setItem('saved_participant_name', selectedParticipant.name);
+        localStorage.setItem('saved_vote_code', voteCode);
+
         setSelectedOption(null);
-        setSelectedParticipant(null);
-        setVoteCode('');
         setSearch('');
       } else {
         const data = await res.json();
@@ -204,7 +213,14 @@ export default function VoterPage() {
                 <div className="flex items-center justify-between p-5 bg-brand/10 border border-brand/30 rounded-2xl">
                   <span className="font-bold text-brand text-xl">{selectedParticipant.name}</span>
                   <button 
-                    onClick={() => { setSelectedParticipant(null); setSearch(''); }} 
+                    onClick={() => { 
+                      setSelectedParticipant(null); 
+                      setSearch(''); 
+                      setVoteCode('');
+                      localStorage.removeItem('saved_participant_id');
+                      localStorage.removeItem('saved_participant_name');
+                      localStorage.removeItem('saved_vote_code');
+                    }} 
                     className="text-brand hover:text-brand-dark bg-brand/20 px-4 py-2 rounded-xl text-sm transition-colors font-semibold"
                   >
                     Change

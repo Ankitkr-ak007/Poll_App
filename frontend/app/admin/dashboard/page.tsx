@@ -144,7 +144,7 @@ export default function AdminDashboard() {
   const handleAddParticipants = async () => {
     const names = bulkNames.split('\n').filter(n => n.trim());
     if (names.length === 0) return;
-    await fetch(`${API_URL}/api/admin/participants`, {
+    await fetch(`${API_URL}/api/admin/roster`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({ names })
