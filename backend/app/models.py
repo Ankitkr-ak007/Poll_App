@@ -35,6 +35,14 @@ class Poll(Base):
     winner_option = Column(String(1), nullable=True)
     final_counts = Column(JSONB, nullable=True)
 
+    session = relationship("Session", backref="polls")
+
+    @property
+    def ranking_published(self):
+        if self.session:
+            return self.session.ranking_published
+        return False
+
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'active', 'closed')", name="status_check"),
     )

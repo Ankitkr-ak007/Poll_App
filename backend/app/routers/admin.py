@@ -77,6 +77,17 @@ def add_poll_to_session(session_id: str, poll_data: schemas.PollCreate, db: Sess
     db.refresh(new_poll)
     return new_poll
 
+@router.patch("/session/{session_id}/ranking-publish", response_model=schemas.SessionResponse)
+def update_ranking_publish(session_id: str, publish_req: schemas.RankingPublishRequest, db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
+    session = db.query(models.Session).filter(models.Session.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session.ranking_published = publish_req.published
+    db.commit()
+    db.refresh(session)
+    return session
+
 @router.get("/poll", response_model=schemas.PollResponse)
 def get_poll(db: Session = Depends(get_db), current_admin: models.Admin = Depends(auth.get_current_admin)):
     poll = db.query(models.Poll).order_by(models.Poll.created_at.desc()).first()
@@ -179,7 +190,7 @@ async def next_round_poll(db: Session = Depends(get_db), current_admin: models.A
     
     new_poll = models.Poll(
         session_id=poll.session_id,
-        order_index=poll.order_index + 1,
+        order_index=(poll.order_index or 0) + 1,
         question=poll.question,
         option_a_text=poll.option_a_text,
         option_b_text=poll.option_b_text,
